@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Quantum Pro | Dual-Mode Engine</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body { background-color: #020617; color: #f8fafc; font-family: 'Plus Jakarta Sans', sans-serif; -webkit-tap-highlight-color: transparent; }
+        .glass { background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.05); border-radius: 1.5rem; }
+        .status-real { color: #ef4444; border-color: #ef4444; }
+        .status-demo { color: #10b981; border-color: #10b981; }
+        .quantum-glow { text-shadow: 0 0 20px #10b981; }
+        .btn-strike { background: linear-gradient(135deg, #10b981 0%, #059669 100%); transition: 0.3s; }
+    </style>
+</head>
+<body class="p-4 md:p-8 flex flex-col items-center pb-24">
+
+    <div class="w-full max-w-md">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-6 px-2">
+            <div class="flex items-center gap-2">
+                <div class="bg-emerald-500 p-2 rounded-xl shadow-lg">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
+                </div>
+                <h1 class="text-xl font-black italic uppercase">Quantum<span class="text-emerald-500">.Pro</span></h1>
+            </div>
+            <div id="mode-badge" class="bg-slate-900 px-3 py-1 rounded-full text-[9px] font-black text-slate-500 border border-slate-800 uppercase">IDENTIFYING...</div>
+        </div>
+
+        <!-- Profit/Loss Monitor -->
+        <div class="glass p-8 mb-6 shadow-2xl relative overflow-hidden text-center border-t border-emerald-500/20">
+            <p class="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-1">Session Profit / Loss</p>
+            <div id="total-pl" class="text-6xl font-black tracking-tighter text-white quantum-glow">$0.00</div>
+            <div id="balance" class="text-xs font-bold text-slate-500 mt-2">$0.00 USD</div>
+        </div>
+
+        <!-- Pulse Area -->
+        <div class="grid grid-cols-2 gap-4 mb-6 text-center">
+            <div class="glass p-5 border-b-4 border-emerald-500">
+                <p class="text-[9px] text-slate-500 font-black uppercase mb-1">Market Digit</p>
+                <div id="tick" class="text-5xl font-black text-white">-</div>
+            </div>
+            <div class="glass p-5 border-b-4 border-slate-700">
+                <p class="text-[9px] text-slate-500 font-black uppercase mb-1">Accuracy Step</p>
+                <div id="vloss" class="text-5xl font-black text-white">0</div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="glass p-6 space-y-4 shadow-xl border-t border-emerald-500/10">
+            <!-- Account Type Display -->
+            <div class="flex justify-between px-1">
+                <div class="flex items-center gap-2">
+                    <div id="status-dot" class="w-2 h-2 rounded-full bg-red-600"></div>
+                    <span id="status-label" class="text-[9px] font-black text-slate-500 uppercase">OFFLINE - LONDON</span>
+                </div>
+                <span id="bot-info" class="text-[9px] font-bold text-slate-600 uppercase italic">ID: 36542</span>
+            </div>
+
+            <!-- Stake & Logic -->
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                    <label class="text-[8px] font-bold text-slate-500 uppercase">Stake ($)</label>
+                    <input type="number" id="stake" value="1" class="bg-transparent text-lg font-black text-white w-full outline-none" />
+                </div>
+                <div class="bg-slate-950 p-3 rounded-xl border border-slate-800">
+                    <label class="text-[8px] font-bold text-slate-500 uppercase">V-Loss Limit</label>
+                    <input type="number" id="vlimit" value="4" class="bg-transparent text-lg font-black text-white w-full outline-none" />
+                </div>
+            </div>
+
+            <div class="relative">
+                <input type="password" id="token" placeholder="Paste Secret API Token" class="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-emerald-400 font-mono text-xs focus:border-emerald-500 transition-all outline-none" />
+                <button onclick="toggleBot()" id="run-btn" class="w-full mt-4 py-5 rounded-[1.5rem] btn-strike text-[#020617] font-black text-lg shadow-xl shadow-emerald-500/20 active:scale-95 transition-all uppercase tracking-widest">Connect & Auto-Run</button>
+            </div>
+        </div>
+
+        <div id="logs" class="mt-4 bg-black/40 rounded-2xl p-4 h-24 overflow-y-auto font-mono text-[9px] text-slate-600 space-y-1">
+            > Standby... Enter API Token to proceed.
+        </div>
+    </div>
+
+    <script>
+        let ws, isRunning = false, activeAccountType = 'DEMO';
+        let currentStake = 1, initialStake = 1, vCount = 0, totalPL = 0;
+        const GUEST_ID = "36542";
+
+        function addLog(msg, color='text-slate-500') {
+            const l = document.getElementById('logs');
+            l.innerHTML = `<div class="${color}">> [${new Date().toLocaleTimeString()}] ${msg}</div>` + l.innerHTML;
+        }
+
+        function toggleBot() {
+            const token = document.getElementById('token').value.trim();
+            if(!token || token.length < 10) return alert("Error: Use a Secret Token, not VRTC Account ID!");
+            
+            if(isRunning) { location.reload(); return; }
